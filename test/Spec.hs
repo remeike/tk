@@ -795,6 +795,17 @@ spec = hspec $ do
         "<apply template='_base'>There</apply>"
            `shouldRenderM` "<h1>Hello</h1><main>There</main>"
 
+      it "should be able to explictly pass arguments to templates" $ do
+        hLarcenyState.lLib .=
+          M.fromList
+            [ ( ["_profile"]
+              , parse "<h1>Hi <arg:name/>!</h1>"
+              )
+            ]
+
+        "<apply template='_profile' name='Joe'/>"
+           `shouldRenderM` "<h1>Hi Joe!</h1>"
+
     describe "overriding HTML tags" $ do
       it "should allow overriden Html tags" $ do
         hLarcenyState.lSubs .= subs [("div", textFill "notadivatall")]

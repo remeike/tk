@@ -36,7 +36,7 @@ import           TK.Fills
 import           TK.Html     ( html5Nodes, html5SelfClosingNodes )
 import           TK.Svg      ( svgNodes )
 --------------------------------------------------------------------------------
-import Debug.Trace
+
 
 -- | Turn lazy text into templates.
 parse :: Monad m => LT.Text -> Template s m
@@ -622,9 +622,15 @@ processApply settings atr kids = do
   (ProcessContext pth m l _ mko _ _ _) <- get
   filledAttrs <- fillAttrs settings atr
 
+
   let
     (absolutePath, tplToApply) =
       findTemplateFromAttrs pth l filledAttrs
+
+    templateArgs =
+      M.mapKeys (\k -> Blank $ "arg:" <> k)
+        $ M.map rawTextFill
+        $ M.filterWithKey (\k _ -> k /= "template") filledAttrs
 
     contentSub =
       subs
@@ -634,7 +640,7 @@ processApply settings atr kids = do
                 (_, splices) <- f pth' m lib
                 fmap fst $ runTemplate (mko kids) pth (splices <> m) l
           )
-        ]
+        ] <> templateArgs
 
   (output, bubble, splices) <-
     toProcessStateSubs
