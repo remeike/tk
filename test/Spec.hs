@@ -781,6 +781,20 @@ spec = hspec $ do
         "<apply template=\"base\"><name/>, <message/></apply> <signer/>"
            `shouldRenderM` "Dear Jane Doe, How are you doing? Yours truly, John Doe"
 
+      it "should allow mix of apply and apply-content" $ do
+        hLarcenyState.lLib .=
+          M.fromList
+            [ ( ["_base"]
+              , parse "<apply template='_head'/><main><apply-content/></main>"
+              )
+            , ( ["_head"]
+              , parse "<h1>Hello</h1>"
+              )
+            ]
+
+        "<apply template='_base'>There</apply>"
+           `shouldRenderM` "<h1>Hello</h1><main>There</main>"
+
     describe "overriding HTML tags" $ do
       it "should allow overriden Html tags" $ do
         hLarcenyState.lSubs .= subs [("div", textFill "notadivatall")]
