@@ -622,9 +622,15 @@ processApply settings atr kids = do
   (ProcessContext pth m l _ mko _ _ _) <- get
   filledAttrs <- fillAttrs settings atr
 
+
   let
     (absolutePath, tplToApply) =
       findTemplateFromAttrs pth l filledAttrs
+
+    templateArgs =
+      M.mapKeys (\k -> Blank $ "arg:" <> k)
+        $ M.map rawTextFill
+        $ M.filterWithKey (\k _ -> k /= "template") filledAttrs
 
     contentSub =
       subs
@@ -634,13 +640,13 @@ processApply settings atr kids = do
                 (_, splices) <- f pth' m lib
                 fmap fst $ runTemplate (mko kids) pth (splices <> m) l
           )
-        ]
+        ] <> templateArgs
 
   (output, bubble, splices) <-
     toProcessStateSubs
       $ runTemplate tplToApply absolutePath (contentSub `M.union` m) l
 
-  pcSubs .= splices
+  pcSubs .= m <> contentSub <> splices
   return ([output], bubble)
 
 
