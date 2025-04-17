@@ -541,6 +541,25 @@ spec = hspec $ do
             \\n</pre>\
             \<div>Back to normal</div>"
 
+      it "should not remove line breaks from <plain> tags" $ do
+        txt <-
+          renderM
+            "   <p>   Hello,  Dolly.    Hi!!!   </p> \
+            \\n <plain>                              \
+            \\n    Here be    Javacript...           \
+            \\n    function() { console.log('Yay')}; \
+            \\n                                      \
+            \\n</plain>                              \
+            \\n<div>Back to normal</div>"
+
+        liftIO $
+          txt `shouldBe`
+            "<p> Hello, Dolly. Hi!!! </p>\
+            \\nHere be    Javacript...           \
+            \\nfunction() { console.log('Yay')}; \
+            \\n\
+            \\n<div>Back to normal</div>"
+
     describe "parse" $ do
       it "should parse HTML into a Template" $ do
         hLarcenyState.lSubs .= subst

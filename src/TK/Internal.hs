@@ -36,7 +36,7 @@ import           TK.Fills
 import           TK.Html     ( html5Nodes, html5SelfClosingNodes )
 import           TK.Svg      ( svgNodes )
 --------------------------------------------------------------------------------
-
+import Debug.Trace
 
 -- | Turn lazy text into templates.
 parse :: Monad m => LT.Text -> Template s m
@@ -742,6 +742,17 @@ trimWhitespace txt =
     List.foldl'
       ( \(prev, acc) t ->
         case LT.strip t of
+            -- Start of <plain> tags
+            t' | LT.isPrefixOf "<plain>" t' ->
+              (t', acc <> LT.drop 7 t' <> "\n")
+            -- End of <plain> tags
+            t' | LT.isPrefixOf "</plain>" t ->
+              (t', acc)
+            -- Inside <plain> tags
+            _ | LT.isPrefixOf "<plain>" prev ->
+              (prev, acc <> LT.stripStart t <> "\n")
+
+
             -- Start of <pre> tags
             t' | LT.isPrefixOf "<pre>" t' ->
               (t', acc <> LT.stripStart t)
