@@ -13,9 +13,10 @@ module TK.Internal
 --------------------------------------------------------------------------------
 import           Control.Exception
 import           Lens.Micro
+import           Control.Monad        ( when )
 import           Control.Monad.Trans  ( lift )
 import           Control.Monad.State  ( MonadState, StateT, runStateT
-                                      , get, modify, put, when
+                                      , get, modify, put
                                       )
 import qualified Data.Char           as Char
 import           Data.Foldable        ( foldlM )
