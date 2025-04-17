@@ -15,7 +15,7 @@ import           Control.Exception
 import           Lens.Micro
 import           Control.Monad.Trans  ( lift )
 import           Control.Monad.State  ( MonadState, StateT, runStateT
-                                      , get, modify, put
+                                      , get, modify, put, when
                                       )
 import qualified Data.Char           as Char
 import           Data.Foldable        ( foldlM )
@@ -263,21 +263,23 @@ fallbackFill settings blank splices =
                 <> " in template "
                 <> show pth
 
-          fallback =
+          (fallback, hasDefault) =
             case M.lookup "def" attr of
               Just txt ->
-                rawTextFill txt
+                (rawTextFill txt, False)
 
               Nothing ->
-                fromMaybe
-                  ( if setDebugComments settings then
-                      commentFill message
-                    else
-                      voidFill
-                  )
-                  ( M.lookup FallbackBlank splices )
+                ( fromMaybe
+                    ( if setDebugComments settings then
+                        commentFill message
+                      else
+                        voidFill
+                    )
+                    ( M.lookup FallbackBlank splices )
+                , True
+                )
         in do
-        lift $ setDebugLogger settings $ message
+        when hasDefault $ lift $ setDebugLogger settings $ message
         unFill fallback attr (pth, tpl) lib
 
 
@@ -622,7 +624,6 @@ processApply settings atr kids = do
   (ProcessContext pth m l _ mko _ _ _) <- get
   filledAttrs <- fillAttrs settings atr
 
-
   let
     (absolutePath, tplToApply) =
       findTemplateFromAttrs pth l filledAttrs
@@ -633,20 +634,25 @@ processApply settings atr kids = do
         $ M.filterWithKey (\k _ -> k /= "template") filledAttrs
 
     contentSub =
-      subs
-        [ ( "apply-content"
-          , Fill $
-              \_ (pth', Template f) lib -> do
-                (_, splices) <- f pth' m lib
-                fmap fst $ runTemplate (mko kids) pth (splices <> m) l
-          )
-        ] <> templateArgs
+      case kids of
+        [] ->
+          templateArgs
+
+        _ ->
+          subs
+            [ ( "apply-content"
+              , Fill $
+                  \_ (pth', Template f) lib -> do
+                    (_, splices) <- f pth' m lib
+                    fmap fst $ runTemplate (mko kids) pth (splices <> m) l
+              )
+            ] <> templateArgs
 
   (output, bubble, splices) <-
     toProcessStateSubs
       $ runTemplate tplToApply absolutePath (contentSub `M.union` m) l
 
-  pcSubs .= m <> contentSub <> splices
+  pcSubs .= splices <> m
   return ([output], bubble)
 
 
@@ -736,6 +742,17 @@ trimWhitespace txt =
     List.foldl'
       ( \(prev, acc) t ->
         case LT.strip t of
+            -- Start of <plain> tags
+            t' | LT.isPrefixOf "<plain>" t' ->
+              (t', acc <> LT.drop 7 t' <> "\n")
+            -- End of <plain> tags
+            t' | LT.isPrefixOf "</plain>" t ->
+              (t', acc)
+            -- Inside <plain> tags
+            _ | LT.isPrefixOf "<plain>" prev ->
+              (prev, acc <> LT.stripStart t <> "\n")
+
+
             -- Start of <pre> tags
             t' | LT.isPrefixOf "<pre>" t' ->
               (t', acc <> LT.stripStart t)
