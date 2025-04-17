@@ -36,7 +36,7 @@ import           TK.Fills
 import           TK.Html     ( html5Nodes, html5SelfClosingNodes )
 import           TK.Svg      ( svgNodes )
 --------------------------------------------------------------------------------
-import Debug.Trace
+
 
 -- | Turn lazy text into templates.
 parse :: Monad m => LT.Text -> Template s m
