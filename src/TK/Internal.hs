@@ -15,7 +15,7 @@ import           Control.Exception
 import           Lens.Micro
 import           Control.Monad.Trans  ( lift )
 import           Control.Monad.State  ( MonadState, StateT, runStateT
-                                      , get, modify, put
+                                      , get, modify, put, when
                                       )
 import qualified Data.Char           as Char
 import           Data.Foldable        ( foldlM )
@@ -263,21 +263,23 @@ fallbackFill settings blank splices =
                 <> " in template "
                 <> show pth
 
-          fallback =
+          (fallback, hasDefault) =
             case M.lookup "def" attr of
               Just txt ->
-                rawTextFill txt
+                (rawTextFill txt, False)
 
               Nothing ->
-                fromMaybe
-                  ( if setDebugComments settings then
-                      commentFill message
-                    else
-                      voidFill
-                  )
-                  ( M.lookup FallbackBlank splices )
+                ( fromMaybe
+                    ( if setDebugComments settings then
+                        commentFill message
+                      else
+                        voidFill
+                    )
+                    ( M.lookup FallbackBlank splices )
+                , True
+                )
         in do
-        lift $ setDebugLogger settings $ message
+        when hasDefault $ lift $ setDebugLogger settings $ message
         unFill fallback attr (pth, tpl) lib
 
 
