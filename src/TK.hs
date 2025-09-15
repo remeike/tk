@@ -167,19 +167,19 @@ renderRelative l sub s givenPath targetPath =
 
 -- | Load all the templates in some directory into a Library.
 
-loadTemplates :: MonadIO m => FilePath -> Settings m -> m (Library s m)
+loadTemplates :: Monad m => FilePath -> Settings m -> IO (Library s m)
 loadTemplates path settings =
   let
     mkPath p =
       T.splitOn "/" $ T.pack $ dropExtension p
   in do
-  tpls <- liftIO $ getAllTemplates path
+  tpls <- getAllTemplates path
 
   lib <-
     M.fromList <$>
       mapM
         ( \file -> do
-            content <- liftIO $ ST.readFile (path <> "/" <> file)
+            content <- ST.readFile (path <> "/" <> file)
             return
               ( mkPath file
               , parseXml settings (LT.fromStrict content)

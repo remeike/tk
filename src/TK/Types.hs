@@ -228,7 +228,7 @@ data Settings m =
     , setTrimWhitespace :: Bool
     , setDebugLogger    :: Text -> m ()
     , setDebugComments  :: Bool
-    , setPreprocessor   :: Maybe (Map [Text] [X.Node] -> m (Map [Text] [X.Node]))
+    , setPreprocessor   :: Maybe (Map [Text] [X.Node] -> IO (Map [Text] [X.Node]))
     }
 
 
