@@ -67,6 +67,9 @@ toMarkup output =
     RawJsonOutput _ ->
       mempty
 
+    RawXmlOutput nodes ->
+      xmlToMarkup nodes
+
     CommentOutput txt ->
       Blaze.textComment txt
 
@@ -117,6 +120,9 @@ toXml output =
 
     RawJsonOutput _ ->
       []
+
+    RawXmlOutput nodes ->
+      nodes
 
     CommentOutput txt ->
       [ NodeComment txt ]
@@ -281,20 +287,52 @@ fieldValue val =
 toText :: Output -> Text
 toText output =
   case output of
-    LeafOutput _ _    -> ""
-    ElemOutput _ _ ls -> foldMap toText ls
-    TextOutput txt    -> txt
-    ListOutput ls     -> foldMap toText ls
-    BubbleOutput ls   -> foldMap toText ls
-    RawTextOutput txt -> txt
-    RawJsonOutput _   -> ""
-    CommentOutput txt -> txt
-    HtmlDocType       -> ""
-    VoidOutput        -> ""
-    ShortOutput out   -> toText out
-    DelayedOutput _ _ -> ""
+    LeafOutput _ _     -> ""
+    ElemOutput _ _ ls  -> foldMap toText ls
+    TextOutput txt     -> txt
+    ListOutput ls      -> foldMap toText ls
+    BubbleOutput ls    -> foldMap toText ls
+    RawTextOutput txt  -> txt
+    RawJsonOutput _    -> ""
+    RawXmlOutput nodes -> xmlToText nodes
+    CommentOutput txt  -> txt
+    HtmlDocType        -> ""
+    VoidOutput         -> ""
+    ShortOutput out    -> toText out
+    DelayedOutput _ _  -> ""
 
 
 readMaybe :: Read a => Text -> Maybe a
 readMaybe =
   fmap fst . listToMaybe . reads . T.unpack
+
+
+xmlToText :: [Node] -> Text
+xmlToText nodes =
+  let
+    nodeToText node =
+      case node of
+        NodeElement el    -> xmlToText (elementNodes el)
+        NodeInstruction _ -> ""
+        NodeContent text  -> text
+        NodeComment _     -> ""
+  in
+  foldMap nodeToText nodes
+
+
+xmlToMarkup :: [Node] -> Markup
+xmlToMarkup nodes =
+  let
+    nodeToMarkup node =
+      case node of
+        NodeElement (Element (Name name _ _) attrs children) ->
+          foldr
+            ( \(k,v) tag -> tag ! Blaze.customAttribute (Blaze.textTag k) (Blaze.preEscapedTextValue v) )
+            ( customParent (Blaze.textTag name) $ xmlToMarkup children )
+            ( (\(Name k _ _, v) ->  (k, v)) <$> M.toList attrs )
+
+        NodeInstruction _ -> ""
+        NodeContent text  -> Blaze.preEscapedText text
+        NodeComment text  -> Blaze.textComment text
+  in
+  foldMap nodeToMarkup nodes

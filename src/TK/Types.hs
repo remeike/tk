@@ -253,6 +253,7 @@ data Output
   | ListOutput [Output]
   | RawTextOutput Text
   | RawJsonOutput Value
+  | RawXmlOutput [X.Node]
   | CommentOutput Text
   | HtmlDocType
   | VoidOutput

@@ -75,6 +75,7 @@ module TK
   , mapSubs
   , mapSubs'
   , leafFill
+  , xmlFill
   , voidFill
   , fillChildren
   , fillChildrenWith
