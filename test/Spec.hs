@@ -1183,16 +1183,25 @@ namespaceTests :: SpecWith LarcenyHspecState
 namespaceTests =
   describe "namespaces" $ do
     it "should assume that tags with namespaces are blanks" $ do
+      "<address><tk:address /></address>"
+        `shouldRenderM` "<address></address>"
       "<address><l:address /></address>"
         `shouldRenderM` "<address></address>"
       hLarcenyState.lSubs .=
         subs [("address", textFill "5 Jones St")]
+      "<address><tk:address /></address>"
+        `shouldRenderM` "<address>5 Jones St</address>"
       "<address><l:address /></address>"
         `shouldRenderM` "<address>5 Jones St</address>"
     it "doesn't parse namespaces in attributes" $ do
       hLarcenyState.lSubs .=
-        subs [("l:class", textFill "some-class")]
+        subs
+          [ ("l:class", textFill "some-class")
+          , ("tk:class", textFill "some-class")
+          ]
       "<p class=\"${l:class}\">Hello</p>"
+        `shouldRenderM` "<p class=\"some-class\">Hello</p>"
+      "<p class=\"${tk:class}\">Hello</p>"
         `shouldRenderM` "<p class=\"some-class\">Hello</p>"
     it "should not parse all namespaces as blanks" $ do
       "<svg:svg><path></path></svg>"

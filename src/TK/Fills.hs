@@ -10,6 +10,7 @@ module TK.Fills
   , bubbleFill
   , shortFill
   , leafFill
+  , xmlFill
   , voidFill
   , commentFill
   , delayedFill
@@ -33,6 +34,7 @@ import qualified Data.Map            as M
 import           Data.Maybe           ( fromMaybe )
 import           Data.Text            ( Text )
 import qualified HTMLEntities.Text   as HE
+import qualified Text.XML            as Xml
 --------------------------------------------------------------------------------
 import           TK.Types
 --------------------------------------------------------------------------------
@@ -144,6 +146,11 @@ outputFill' t = Fill $ \_m _t _l -> t
 leafFill :: Monad m => Text -> Fill s m
 leafFill name =
   Fill $ \attrs _ _ -> return $ LeafOutput name attrs
+
+-- | TODO
+xmlFill :: Monad m => [Xml.Node] -> Fill s m
+xmlFill nodes =
+  Fill $ \_ _ _ -> return $ RawXmlOutput nodes
 
 -- | TODO
 voidFill :: Monad m => Fill s m
