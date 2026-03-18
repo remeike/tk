@@ -105,7 +105,6 @@ module TK
 
 --------------------------------------------------------------------------------
 import           Control.Monad           ( filterM )
-import           Control.Monad.IO.Class  ( MonadIO(..) )
 import           Control.Monad.State     ( evalStateT )
 import qualified Data.Map               as M
 import           Data.Text               ( Text )
@@ -200,7 +199,7 @@ getAllTemplates :: FilePath -> IO [FilePath]
 getAllTemplates path = do
   cExist <- doesDirectoryExist path
   cs <- if cExist then listDirectory path else return []
-  let tpls = filter ((== ".tpl") . takeExtension) cs
+  let tpls = filter ((\ext -> ext == ".tk" || ext == ".tpl") . takeExtension) cs
   dirs <- filterM (doesDirectoryExist . (\d -> path <> "/" <> d)) cs
   rs <-
     mapM

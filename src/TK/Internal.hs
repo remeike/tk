@@ -11,6 +11,7 @@ module TK.Internal
   ) where
 
 --------------------------------------------------------------------------------
+import           Control.Applicative  ( (<|>) )
 import           Control.Exception
 import           Lens.Micro
 import           Control.Monad        ( when )
@@ -95,9 +96,9 @@ data Element
 
 toLarcenyName :: X.Name -> Name
 toLarcenyName (X.Name tn _ _) =
-  case T.stripPrefix "l:" tn of
+  case T.stripPrefix "l:" tn <|> T.stripPrefix "tk:" tn of
     Just larcenyTagName ->
-      Name (Just "l") larcenyTagName
+      Name (Just "tk") larcenyTagName
 
     Nothing ->
       case T.stripPrefix "svg:" tn of
@@ -158,7 +159,7 @@ toLarcenyNode settings node =
 
         -- these are the blank and plain elements
         -- if it's in the "svg" prefix, it's definitely a plain node
-        -- if there's an "l" prefix, it's definitely a Blank
+        -- if there's an "l" or "tk" prefix, it's definitely a Blank
         -- if there's not a prefix, and the tag is a member of the set of plain nodes, it's plain
         -- otherwise, it's a Blank
         Name (Just "svg") name ->
@@ -169,6 +170,9 @@ toLarcenyNode settings node =
 
         Name (Just "l") name ->
           NodeElement (BlankElement (Name (Just "l") name) attrs larcenyNodes)
+
+        Name (Just "tk") name ->
+          NodeElement (BlankElement (Name (Just "tk") name) attrs larcenyNodes)
 
         Name pf name | HS.member name allPlainNodes && not (setIgnoreHtml settings) ->
           NodeElement (PlainElement (Name pf name) attrs larcenyNodes)
