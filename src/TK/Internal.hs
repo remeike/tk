@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 
 
@@ -12,7 +13,8 @@ module TK.Internal
 
 --------------------------------------------------------------------------------
 import           Control.Applicative  ( (<|>) )
-import           Control.Exception
+import           Control.Exception    ( throw )
+import           Control.Monad.Catch  ( MonadCatch, catch )
 import           Lens.Micro
 import           Control.Monad        ( when )
 import           Control.Monad.Trans  ( lift )
@@ -41,12 +43,12 @@ import           TK.Svg      ( svgNodes )
 
 
 -- | Turn lazy text into templates.
-parse :: Monad m => LT.Text -> Template s m
+parse :: MonadCatch m => LT.Text -> Template s m
 parse = parseWithSettings defaultSettings
 
 
 -- | Use settings when parsing a template.
-parseWithSettings :: Monad m => Settings m -> LT.Text -> Template s m
+parseWithSettings :: MonadCatch m => Settings m -> LT.Text -> Template s m
 parseWithSettings settings t =
   parseTemplate settings (parseXml settings t)
 
@@ -67,7 +69,7 @@ parseXml settings t =
 
 
 -- | Parse XML nodes into template.
-parseTemplate :: Monad m => Settings m -> [X.Node] -> Template s m
+parseTemplate :: MonadCatch m => Settings m -> [X.Node] -> Template s m
 parseTemplate settings nodes =
   mk settings $! map (toLarcenyNode settings) nodes
 
@@ -182,7 +184,7 @@ toLarcenyNode settings node =
 
 
 -- | Turn HTML nodes and overrides into templates.
-mk :: Monad m => Settings m -> [Node] -> Template s m
+mk :: MonadCatch m => Settings m -> [Node] -> Template s m
 mk settings =
   let
     f nodes =
@@ -247,12 +249,12 @@ toUserState pc f = do
   return (result, pc')
 
 
-fillIn :: Monad m => Settings m -> Blank -> Substitutions s m -> Fill s m
+fillIn :: MonadCatch m => Settings m -> Blank -> Substitutions s m -> Fill s m
 fillIn settings tn m =
   fromMaybe (fallbackFill settings tn m) (M.lookup tn m)
 
 
-fallbackFill :: Monad m => Settings m -> Blank -> Substitutions s m -> Fill s m
+fallbackFill :: MonadCatch m => Settings m -> Blank -> Substitutions s m -> Fill s m
 fallbackFill settings blank splices =
   case blank of
     FallbackBlank ->
@@ -285,7 +287,16 @@ fallbackFill settings blank splices =
                 )
         in do
         when hasDefault $ lift $ setDebugLogger settings $ message
-        unFill fallback attr (pth, tpl) lib
+
+        if setCatchAttrError settings then
+          catch
+            ( unFill fallback attr (pth, tpl) lib )
+            ( \(err :: AttrError) ->
+                return $ CommentOutput $ T.pack $ show err
+            )
+        else
+          unFill fallback attr (pth, tpl) lib
+
 
 
 data ProcessContext s m =
@@ -327,7 +338,7 @@ add mouter tpl =
   Template (\pth minner l -> runTemplate tpl pth (minner `M.union` mouter) l)
 
 
-process :: Monad m => Settings m -> [Node] -> ProcessT s m
+process :: MonadCatch m => Settings m -> [Node] -> ProcessT s m
 process settings nodes =
   case nodes of
     [] ->
@@ -380,7 +391,7 @@ process settings nodes =
 -- Add the open tag and attributes, process the children, then close
 -- the tag.
 processPlain ::
-  Monad m => Settings m -> Name -> Attributes -> [Node] -> ProcessT s m
+  MonadCatch m => Settings m -> Name -> Attributes -> [Node] -> ProcessT s m
 processPlain settings tagName atr kids = do
   pc <- get
   atrs <- processAttrs settings atr
@@ -409,7 +420,7 @@ elemOutput overrides (Name mPf name) atrs processed =
 
 
 processAttrs ::
-  Monad m => Settings m -> Attributes -> StateT (ProcessContext s m) m Attributes
+  MonadCatch m => Settings m -> Attributes -> StateT (ProcessContext s m) m Attributes
 processAttrs settings attrs =
   let
     attrToText (k,v) =
@@ -424,7 +435,7 @@ processAttrs settings attrs =
 
 
 fillAttrs ::
-  Monad m =>
+  MonadCatch m =>
   Settings m -> Attributes -> StateT (ProcessContext s m) m Attributes
 fillAttrs settings attrs =
   let
@@ -438,7 +449,7 @@ fillAttrs settings attrs =
 
 
 fillAttr ::
-  Monad m =>
+  MonadCatch m =>
   Settings m -> Either Text Blank -> StateT (ProcessContext s m) m Text
 fillAttr settings eBlankText = do
   ProcessContext pth m l _ mko _ _ _ <- get
@@ -516,9 +527,17 @@ fillAttr settings eBlankText = do
       return $ T.concat $ fmap toText ls
 
     Right hole ->
-      fmap (toText . fst)
-        $ toProcessState
-        $ unFill (fillIn settings hole m) mempty (pth, mko []) l
+      if setCatchAttrError settings then
+        catch
+          ( fmap (toText . fst)
+              $ toProcessState
+              $ unFill (fillIn settings hole m) mempty (pth, mko []) l
+          )
+          ( \(err :: AttrError) -> return $ T.pack $ show err )
+      else
+        fmap (toText . fst)
+          $ toProcessState
+          $ unFill (fillIn settings hole m) mempty (pth, mko []) l
 
     Left text ->
       fmap (toText . fst)
@@ -533,7 +552,7 @@ isTrue "true" = True
 isTrue _      = False
 
 
-handleToken :: Monad m => Settings m -> Text -> StateT (ProcessContext s m) m Text
+handleToken :: MonadCatch m => Settings m -> Text -> StateT (ProcessContext s m) m Text
 handleToken settings txt =
   case T.uncons $ T.strip txt of
     Just ('\'', str) ->
@@ -550,13 +569,18 @@ handleToken settings txt =
 -- attributes, a Template made from the child nodes (adding in the
 -- outer substitution) and the library.
 processBlank ::
-  Monad m => Settings m -> Text -> Attributes -> [Node] -> ProcessT s m
+  MonadCatch m => Settings m -> Text -> Attributes -> [Node] -> ProcessT s m
 processBlank settings tagName atr kids = do
   ctxt@(ProcessContext pth m l _ mko _ _ delays) <- get
   filled <- fillAttrs settings atr
   (output, bubble) <-
-    toProcessState
-      $ unFill (fillIn settings (Blank tagName) m) filled (pth, add m (mko kids)) l
+    toProcessState $
+      if setCatchAttrError settings then
+        catch
+          ( unFill (fillIn settings (Blank tagName) m) filled (pth, add m (mko kids)) l )
+          ( \(err :: AttrError) -> return $ CommentOutput $ T.pack $ show err)
+      else
+        unFill (fillIn settings (Blank tagName) m) filled (pth, add m (mko kids)) l
 
   case output of
     DelayedOutput pos _ -> do
@@ -574,7 +598,7 @@ processBlank settings tagName atr kids = do
 
 
 processBind ::
-  Monad m => Settings m -> Attributes -> [Node] -> ProcessT s m
+  MonadCatch m => Settings m -> Attributes -> [Node] -> ProcessT s m
 processBind settings atrs kids = do
   atr <- fillAttrs settings atrs
 
@@ -624,7 +648,7 @@ processBind settings atrs kids = do
 -- create a substitution for the content hole using the child elements
 -- of the apply tag, then run the template with that substitution
 -- combined with outer substitution and the library.
-processApply :: Monad m => Settings m -> Attributes -> [Node] -> ProcessT s m
+processApply :: MonadCatch m => Settings m -> Attributes -> [Node] -> ProcessT s m
 processApply settings atr kids = do
   (ProcessContext pth m l _ mko _ _ _) <- get
   filledAttrs <- fillAttrs settings atr

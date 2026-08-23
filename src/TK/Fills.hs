@@ -29,7 +29,7 @@ module TK.Fills
 
 --------------------------------------------------------------------------------
 import           Control.Exception
-import           Control.Monad.State  ( StateT )
+import           Control.Monad.State  ( StateT, lift )
 import qualified Data.Map            as M
 import           Data.Maybe           ( fromMaybe )
 import           Data.Text            ( Text )
@@ -278,11 +278,13 @@ maybeFillChildrenWith' sMSubs = Fill $ \_s (pth, Template tpl) l -> do
 -- create these. The second argument is a function that uses the
 -- values of those attributes to create a Fill.
 useAttrs :: Monad m
-         => (Attributes -> k -> Fill s m)
+         => (Attributes -> k -> m (Fill s m))
          ->  k
          ->  Fill s m
-useAttrs k fill= Fill $ \atrs (pth, tpl) lib ->
-  unFill (k atrs fill) atrs (pth, tpl) lib
+useAttrs k fill =
+  Fill $ \atrs (pth, tpl) lib -> do
+    f <- lift $ k atrs fill
+    unFill f atrs (pth, tpl) lib
 
 -- | Prepend `a` to the name of an attribute to pass the value of that
 -- attribute to the fill.
@@ -290,10 +292,13 @@ useAttrs k fill= Fill $ \atrs (pth, tpl) lib ->
 -- The type of the attribute is whatever type the fill expects. If `a`
 -- can't parse the value, then there will be an error when the template
 -- is rendered.
-a :: (FromAttribute a) => Text -> Attributes -> (a -> b) -> b
+a :: (Monad m, FromAttribute a) => Text -> Attributes -> (a -> b) -> m b
 a attrName attrs k =
-  let mAttr = M.lookup attrName attrs in
-  k (either (\e -> throw $ e attrName) id (fromAttribute mAttr))
+  let mAttr = M.lookup attrName attrs
+  in
+  case fromAttribute mAttr of
+    Left e  -> throw (e attrName)
+    Right x -> pure (k x)
 
 -- | Use with `a` to use multiple attributes in the fill.
 --
@@ -308,7 +313,9 @@ a attrName attrs k =
 -- @
 --
 -- > A really l...
-(%) :: (Attributes -> a -> b)
-    -> (Attributes -> b -> c)
-    ->  Attributes -> a -> c
-(%) f1 f2 attrs k = f2 attrs (f1 attrs k)
+(%) :: Monad m
+    => (Attributes -> a -> m b)
+    -> (Attributes -> b -> m c)
+    -> Attributes -> a -> m c
+(%) f1 f2 attrs k =
+  f1 attrs k >>= f2 attrs

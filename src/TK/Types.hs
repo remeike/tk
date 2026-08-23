@@ -228,6 +228,7 @@ data Settings m =
     , setTrimWhitespace :: Bool
     , setDebugLogger    :: Text -> m ()
     , setDebugComments  :: Bool
+    , setCatchAttrError :: Bool
     , setPreprocessor   :: Maybe (Map [Text] [X.Node] -> IO (Map [Text] [X.Node]))
     }
 
@@ -242,6 +243,7 @@ defaultSettings =
     , setTrimWhitespace = True
     , setDebugLogger    = \_ -> return ()
     , setDebugComments  = False
+    , setCatchAttrError = False
     , setPreprocessor   = Nothing
     }
 

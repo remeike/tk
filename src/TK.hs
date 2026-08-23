@@ -105,6 +105,7 @@ module TK
 
 --------------------------------------------------------------------------------
 import           Control.Monad           ( filterM )
+import           Control.Monad.Catch     ( MonadCatch )
 import           Control.Monad.State     ( evalStateT )
 import qualified Data.Map               as M
 import           Data.Text               ( Text )
@@ -167,7 +168,7 @@ renderRelative l sub s givenPath targetPath =
 
 -- | Load all the templates in some directory into a Library.
 
-loadTemplates :: Monad m => FilePath -> Settings m -> IO (Library s m)
+loadTemplates :: MonadCatch m => FilePath -> Settings m -> IO (Library s m)
 loadTemplates path settings =
   let
     mkPath p =

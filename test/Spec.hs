@@ -1438,6 +1438,31 @@ attrTests =
                                         "A really long description"
                                         <> "..."))]
         "<l:desc length=\"infinite\" />" `shouldErrorM` (== AttrUnparsable "Int" "length")
+
+      it "should catch exception and render comment if attribute is missing" $ do
+        hLarcenyState.lSettings .= defaultSettings { setCatchAttrError = True }
+        hLarcenyState.lSubs .=
+          subs
+            [ ( "count"
+              , useAttrs (a "n") $ \(name :: Int) -> textFill $ T.pack $ show name
+              )
+            ]
+
+        "<p>Before</p><p><count/></p><p>After</p>"
+          `shouldRenderM` "<p>Before</p><p><!-- Missing attribute \"n\". --></p><p>After</p>"
+
+      it "should catch exception and render comment if attribut is unparsable" $ do
+        hLarcenyState.lSettings .= defaultSettings { setCatchAttrError = True }
+        hLarcenyState.lSubs .=
+          subs
+            [ ( "count"
+              , useAttrs (a "n") $ \(name :: Int) -> textFill $ T.pack $ show name
+              )
+            ]
+
+        "<p>Before</p><p><count n=\"letter\"/></p><p>After</p>"
+          `shouldRenderM` "<p>Before</p><p><!-- Attribute with name \"n\" can't be parsed to type \"Int\". --></p><p>After</p>"
+
   where descFill :: Fill () IO
         descFill =
           useAttrs (a"length" % a"ending") descFunc
